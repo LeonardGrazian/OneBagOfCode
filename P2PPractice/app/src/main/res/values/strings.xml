@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">P2PPractice</string>
+    <string name="edit_message">WRITE YOUR SHIT HERE</string>
+    <string name="button_send">DISABLED</string>
+</resources>
