@@ -125,6 +125,14 @@ class Triangle {
             fArray[(3 * i) + 1] = vArray[i].getY();
             fArray[(3 * i) + 2] = vArray[i].getZ();
         }
+
+//        float[] fArray = new float[number_of_vertices * 4];
+//        for (int i = 0; i < number_of_vertices; i++) {
+//            fArray[(4 * i)] = vArray[i].getX();
+//            fArray[(4 * i) + 1] = vArray[i].getY();
+//            fArray[(4 * i) + 2] = vArray[i].getZ();
+//            fArray[(4 * i) + 2] = 1.0f; // indicates that this vector is a position in space
+//        }
         return fArray;
     }
 }

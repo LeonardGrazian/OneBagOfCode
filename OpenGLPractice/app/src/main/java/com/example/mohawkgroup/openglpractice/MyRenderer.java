@@ -8,15 +8,19 @@ import android.opengl.Matrix;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
 import javax.microedition.khronos.opengles.GL10;
 
+import org.j3d.geom.particle.MaxTimeParticleFunction;
 import org.j3d.loaders.stl.STLFileReader;
 
 /**
@@ -38,20 +42,22 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     // my shader source code
     private final String vertexShaderCode =
-            "attribute vec4 vPosition;" +
+//            "uniform mat4 uMVMatrix;" + // model view (no projection)
+            "uniform mat4 uMVPMatrix;" +
+
+//                    "unifrom vec4 aColor;" + // color of triangle before we apply lambertian shading
+//                    "uniform vec3 light_dir; " + // direction of incident light, should be normalized
+
+                    "attribute vec4 vPosition;" +
+//                    "attribute vec4 vNormal;" +
+//                    "attribute vec4 vColor;" + // color of triangle after we apply lambertian shading
+
                     "void main() {" +
-                    "  gl_Position = vPosition;" +
+                    "  gl_Position = uMVPMatrix * vPosition;" + // update gl_position
+//                    "  vec3 modelViewNormal = normalize(vec3(uMVMatrix * vNormal));" +
+//                    "  float lamber_factor = max(dot(modelViewNormal, light_dir;" +
+//                    "  vColor = aColor * lambert_factor;" +
                     "}";
-//            "uniform mat4 u_MVPMatrix;      \n"     // A constant representing the combined model/view/projection matrix.
-//
-//                    + "attribute vec4 a_Position;     \n"     // Per-vertex position information we will pass in.
-//
-//                    + "void main()                    \n"     // The entry point for our vertex shader.
-//                    + "{                              \n"
-//                    // It will be interpolated across the triangle.
-//                    + "   gl_Position = u_MVPMatrix   \n"     // gl_Position is a special variable used to store the final position.
-//                    + "               * a_Position;   \n"     // Multiply the vertex by the matrix to get the final point in
-//                    + "}";
 
     private final String fragmentShaderCode =
             "precision mediump float;" +
@@ -62,13 +68,19 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     // my handles
     private int myProgram;
+    private int myPositionHandle;
+    private int myNormalHandle;
+    private int myColorHandle;
+    private int myLightDirHandle;
+    float[] color = { 0.63671875f, 0.76953125f, 0.22265625f, 1.0f};
     private int myMVPMatrixHandle;
+    private int myMVMatrixHandle;
 
     // mMVPMatrix is an abbreviation for "Model View Projection Matrix"
     private final float[] myMVPMatrix = new float[16];
     private final float[] myProjectionMatrix = new float[16];
     private final float[] myViewMatrix = new float[16];
-    private final float[] transThenRotMatrix = new float[16];
+    private final float[] myMVMatrix = new float[16];
     private final float[] myTranslationMatrix = new float[16];
     float[] xRotationMatrix = new float[16]; // rotates about x axis, caused by y movement
     float[] yRotationMatrix = new float[16]; // rotates about y axis, caused by x movement
@@ -77,7 +89,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     // for storing vertices
     private int number_of_triangles;
-    private FloatBuffer allTrianglesVertexBuffer;
 
     public void setContext(Context context) {
         this.context = context;
@@ -111,30 +122,34 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glLinkProgram(myProgram);
 
         List<Triangle> triangles = new LinkedList<Triangle>();
-//        // load up the model from file (exclude file extension)
-//        ModelLoader input_loader = new ModelLoader(context, "cube"); // name of stl goes here
-//        // populate triangles list
-//        FloatBuffer vertexBuffer;
-//        double[] normal = new double[3];
-//        double[][] vertices = new double[3][3];
-//        while (input_loader.getNextFacet(normal, vertices)) {
-//            Triangle temp_tri = new Triangle(vertices);
-//            triangles.add(temp_tri);
-//            update_bounding_box(vertices);
-//        }
-//        numer_of_triangles = triangles.size();
+        // load up the model from file (exclude file extension)
+        ModelLoader input_loader = new ModelLoader(context, "cube"); // name of stl goes here
+
+//        List<Float> normal_list = new ArrayList<Float>();
+        double[] normal = new double[3];
+        double[][] vertices = new double[3][3];
+        while (input_loader.getNextFacet(normal, vertices)) {
+//            normal_list.add((float) normal[0]);
+//            normal_list.add((float) normal[1]);
+//            normal_list.add((float) normal[2]);
+
+            Triangle temp_tri = new Triangle(vertices);
+            triangles.add(temp_tri);
+            update_bounding_box(vertices);
+        }
 
         // set triangle manually
-        Vertex v0 = new Vertex(0.0f, 0.0f, 0.0f);
-        Vertex v1 = new Vertex(1.0f, 0.0f, 0.0f);
-        Vertex v2 = new Vertex(0.0f, 1.0f, 0.0f);
-        triangles.add(new Triangle(v0, v1, v2));
-        bounding_box[0] = 0.0f;
-        bounding_box[1] = 1.0f;
-        bounding_box[2] = 0.0f;
-        bounding_box[3] = 1.0f;
-        bounding_box[4] = 0.0f;
-        bounding_box[5] = 0.0f;
+//        Vertex v0 = new Vertex(0.0f, 0.0f, 0.0f);
+//        Vertex v1 = new Vertex(1.0f, 0.0f, 0.0f);
+//        Vertex v2 = new Vertex(0.0f, 1.0f, 0.0f);
+//        triangles.add(new Triangle(v0, v1, v2));
+//        bounding_box[0] = 0.0f;
+//        bounding_box[1] = 1.0f;
+//        bounding_box[2] = 0.0f;
+//        bounding_box[3] = 1.0f;
+//        bounding_box[4] = 0.0f;
+//        bounding_box[5] = 0.0f;
+
         number_of_triangles = triangles.size();
 
         box_size[0] = bounding_box[1] - bounding_box[0];
@@ -144,140 +159,152 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         box_middle[0] = (float) (bounding_box[0] + bounding_box[1]) / 2;
         box_middle[1] = (float) (bounding_box[2] + bounding_box[3]) / 2;
         box_middle[2] = (float) (bounding_box[4] + bounding_box[5]) / 2;
-//        print_bounding_box();
-//
-//        // put model at origin TODO: find a way to do this with matrix transformations
-//        for (Triangle triangle : triangles) {
-//            triangle.translate(new Vertex(-box_middle[0], -box_middle[1], -box_middle[2]));
+        print_bounding_box();
+
+        // put model at origin TODO: find a way to do this with matrix transformations
+        for (Triangle triangle : triangles) {
+            triangle.translate(new Vertex(-box_middle[0], -box_middle[1], -box_middle[2]));
+        }
+
+        // load vertex positions into a float array
+        // (# of triangles) * (vertices per triangle) * (floats per vertex)
+        float[] vertex_pos_array = new float[number_of_triangles * 3 * 3];
+        int position_index = 0;
+        for (Triangle triangle : triangles) {
+            // add the coordinates to the FloatBuffer
+            float[] temp_array = triangle.getCoordsAsArray();
+            for (int i = 0; i < temp_array.length; i++) {
+                vertex_pos_array[position_index] = temp_array[i];
+                position_index++;
+            }
+        }
+
+        // load normals into normal array
+//        float[] normal_array = new float[normal_list.size()];
+//        for (int i = 0; i < normal_list.size(); i++) {
+//            normal_array[i] = (float) normal_list.get(i);
 //        }
-//
-//        // (# of triangles) * (vertices per triangle) * (floats per vertice)
-//        float[] vertex_data_array = new float[number_of_triangles * 3 * 3];
-//        int position_index = 0;
-//        for (Triangle triangle : triangles) {
-//            // add the coordinates to the FloatBuffer
-//            float[] temp_array = triangle.getCoordsAsArray();
-//            for (int i = 0; i < temp_array.length; i++) {
-//                vertex_data_array[position_index] = temp_array[i];
-//                position_index++;
-//            }
-//        }
-//
-//        // Create buffer containing all of our vertex data
-//        int number_of_bytes = vertex_data_array.length * 4; // (# of floats) * (bytes per float)
-//        ByteBuffer bb = ByteBuffer.allocateDirect(number_of_bytes);
+
+        // Add program to OpenGL ES environment
+        GLES20.glUseProgram(myProgram);
+
+        // create handles to important stuff
+        // get handle to vertex shader's vPosition member
+        myPositionHandle = GLES20.glGetAttribLocation(myProgram, "vPosition");
+
+        // get handle to vertex shader's vNormal member
+//        myNormalHandle = GLES20.glGetAttribLocation(myProgram, "vNormal");
+
+        // get handle to fragment shader's vColor member
+        myColorHandle = GLES20.glGetUniformLocation(myProgram, "vColor");
+        GLES20.glUniform4fv(myColorHandle, 1, color, 0); // load color into GPU memory
+
+        // set light direction
+//        myLightDirHandle = GLES20.glGetAttribLocation(myProgram, "light_dir");
+//        GLES20.glUniform3f(myLightDirHandle, 0.0f, 0.0f, 1.0f);
+
+        // Create buffer containing all of our vertex data
+        int number_of_bytes = vertex_pos_array.length * 4; // (# of floats) * (bytes per float)
+        ByteBuffer bb = ByteBuffer.allocateDirect(number_of_bytes);
+        // use the device hardware's native byte order
+        bb.order(ByteOrder.nativeOrder());
+
+        // create a floating point buffer from the ByteBuffer
+        FloatBuffer cVertexBuffer = bb.asFloatBuffer();
+        // add the coordinates to the FloatBuffer
+        cVertexBuffer.put(vertex_pos_array);
+        // set the buffer to read the first coordinate
+        cVertexBuffer.position(0);
+
+        // Create buffer containing normal data
+//        int number_of_normal_bytes = normal_array.length * 4; // (# of floats) * (bytes per float)
+//        ByteBuffer bbn = ByteBuffer.allocateDirect(number_of_bytes);
 //        // use the device hardware's native byte order
-//        bb.order(ByteOrder.nativeOrder());
+//        bbn.order(ByteOrder.nativeOrder());
 //
 //        // create a floating point buffer from the ByteBuffer
-//        FloatBuffer cVertexBuffer = bb.asFloatBuffer();
+//        FloatBuffer cNormalBuffer = bbn.asFloatBuffer();
 //        // add the coordinates to the FloatBuffer
-//        cVertexBuffer.put(vertex_data_array);
+//        cNormalBuffer.put(normal_array);
 //        // set the buffer to read the first coordinate
-//        cVertexBuffer.position(0);
-//
-//        int gVertexBuffer[] = new int[1];
-//        GLES20.glGenBuffers(number_of_triangles * 3, gVertexBuffer, 0);
-//        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gVertexBuffer[0]);
-//        // Give our vertices to OpenGL.
+//        cNormalBuffer.position(0);
+
+        int[] gBuffers = new int[3];
+        GLES20.glGenBuffers(3, gBuffers, 0);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gBuffers[0]);
+
+        // Give our vertices to OpenGL.
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,
+                            number_of_bytes,
+                            cVertexBuffer,
+                            GLES20.GL_STATIC_DRAW // we will NOT update positions dynamically
+        );
+
+//        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gBuffers[1]);
+
+        // Give our normals to OpenGL.
 //        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,
-//                            number_of_bytes,
-//                            cVertexBuffer,
-//                            GLES20.GL_STATIC_DRAW // we will NOT update positions dynamically
+//                number_of_normal_bytes,
+//                cNormalBuffer,
+//                GLES20.GL_STATIC_DRAW // we will NOT update positions dynamically
 //        );
-//
-//        // IMPORTANT: Unbind from the buffer when we're done with it.
+
+        // IMPORTANT: Unbind from the buffer when we're done with it.
+
+        // attach our vertex info to myPositionHandle
+        GLES20.glEnableVertexAttribArray(myPositionHandle);
+        GLES20.glVertexAttribPointer(
+                myPositionHandle,   // maps the vertex coords to vPosition in shader code
+                3,                  // size
+                GLES20.GL_FLOAT,    // type
+                false,              // normalized?
+                0,                  // stride
+                0                   // array buffer offset
+        );
+
+        // IMPORTANT: Unbind from the buffer when we're done with it.
 //        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
-//
-//
-//
-//        GLES20.glEnableVertexAttribArray(0);
-//        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gVertexBuffer[0]);
-//        GLES20.glVertexAttribPointer(
-//                1,                  // attribute 1. No particular reason for 1, but must match the layout in the shader.
-//                3,                  // size
-//                GLES20.GL_FLOAT,    // type
-//                false,              // normalized?
-//                0,                  // stride
-//                0                   // array buffer offset
-//        );
+
+        // get view matrix
+        Matrix.setLookAtM(myViewMatrix, 0, 0.0f, 0.0f,
+                25.0f, // = z_min - (z_min + z_max)/2
+                0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
 
     }
 
     @Override
     public void onDrawFrame(GL10 unused) {
-//        // Redraw background color
-//        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-//
-//        // Set light position
-//        float[] normalized_light_dir_before_rotation = {0.0f, 0.0f, 1.0f, 0.0f};
-//        // Set the camera position (View matrix)
-//        Matrix.setLookAtM(myViewMatrix, 0, 0.0f, 0.0f,
-//                            -4.0f, // = z_min - (z_min + z_max)/2
-//                            0.0f, 0.0f, 0.0f, 0f, 1.0f, 0.0f);
-//
-//        // Calculate the model transformation (translates the model so it sits at the origin
-//        // this method translates the matrix, it does not generate a translation matrix, DO NOT USE
-////        Matrix.translateM(myTranslationMatrix, 0, -box_middle[0], -box_middle[1], -box_middle[2]);
-//        // Calculate the projection and view transformation
-//        Matrix.multiplyMM(myMVPMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
-//
-//        // Calculate rotation matrix
-//        Matrix.setRotateM(xRotationMatrix, 0, xAngle, 1.0f, 0, 0);
-//        Matrix.setRotateM(yRotationMatrix, 0, yAngle, 0, 1.0f, 0);
-//        Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
-//
-//        // Concatenate translation and rotation matrices
-////        Matrix.multiplyMM(transThenRotMatrix, 0, totRotationMatrix, 0, myTranslationMatrix, 0);
-//
-//        // Combine the rotation matrix with the projection and camera view
-//        // Note that the mMVPMatrix factor *must be first* in order
-//        // for the matrix multiplication product to be correct.
-//        Matrix.multiplyMM(scratch, 0, myMVPMatrix, 0, totRotationMatrix, 0);
-//
-//        // update light position based on rotation
-//        float[] new_light_dir = new float[4];
-//        Matrix.multiplyMV(new_light_dir, 0, totRotationMatrix, 0, normalized_light_dir_before_rotation, 0);
-//
-//        for (Triangle triangle : triangles) {
-//            triangle.set_color(myProgram, new_light_dir);
+        // Redraw background color
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
+        // Calculate the projection and view transformation
+        Matrix.multiplyMM(myMVPMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
+
+        // Calculate rotation matrix
+        Matrix.setRotateM(xRotationMatrix, 0, xAngle, 1.0f, 0, 0);
+        Matrix.setRotateM(yRotationMatrix, 0, yAngle, 0, 1.0f, 0);
+        Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
+
+//        Matrix.multiplyMM(myMVMatrix, 0, myViewMatrix, 0, totRotationMatrix, 0);
+        Matrix.multiplyMM(scratch, 0, myMVPMatrix, 0, totRotationMatrix, 0);
+
+//        for (Float f : myMVPMatrix) {
+//            System.out.println(f);
 //        }
-//
-//        // get handle to shape's transformation matrix
-//        myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix"); // should definitely be outside triangle class
-//
-//        // Pass the projection and view transformation to the shader
-//        GLES20.glUniformMatrix4fv(myMVPMatrixHandle, 1, false, scratch, 0); //mvpMatrix, 0);
-//
-//        // Draw the triangle
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3 * number_of_triangles);
 
-        // Add program to OpenGL ES environment
-        GLES20.glUseProgram(myProgram);
+//        Matrix.setIdentityM(myMVPMatrix, 0);
 
-        // get handle to vertex shader's vPosition member
-        mPositionHandle = GLES20.glGetAttribLocation(myProgram, "vPosition");
+        // get handle to shape's transformation matrix
+        myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix"); // should definitely be outside triangle class
+//        myMVMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVMatrix");
 
-        // Enable a handle to the triangle vertices
-        GLES20.glEnableVertexAttribArray(mPositionHandle);
+        // Pass the projection and view transformation to the shader
+        GLES20.glUniformMatrix4fv(myMVPMatrixHandle, 1, false, scratch, 0);
+//        GLES20.glUniformMatrix4fv(myMVMatrixHandle, 1, false, myMVMatrix, 0);
+        //
 
-        // Prepare the triangle coordinate data
-        GLES20.glVertexAttribPointer(mPositionHandle, COORDS_PER_VERTEX,
-                GLES20.GL_FLOAT, false,
-                vertexStride, vertexBuffer);
-
-        // get handle to fragment shader's vColor member
-        mColorHandle = GLES20.glGetUniformLocation(myProgram, "vColor");
-
-        // Set color for drawing the triangle
-        GLES20.glUniform4fv(mColorHandle, 1, color, 0);
-
-        // Draw the triangle
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount);
-
-        // Disable vertex array
-        GLES20.glDisableVertexAttribArray(mPositionHandle);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, number_of_triangles * 3);
     }
 
     @Override
@@ -288,9 +315,9 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         // this projection matrix is applied to object coordinates
         // in the onDrawFrame() method
-        Matrix.frustumM(myProjectionMatrix, 0, -ratio, ratio, -1, 1, 3.0f, 7.0f);
-//                (float) (bounding_box[4] + bounding_box[5]) / 4,
-//                (float) (bounding_box[4] + bounding_box[5]) * 7.0f / 4);
+        Matrix.frustumM(myProjectionMatrix, 0, -ratio, ratio, -1, 1, 3.0f, 47.0f);
+
+//        Arrays.fill(myProjectionMatrix, 0.0f);
     }
 
     public static int loadShader(int type, String shaderCode) {
