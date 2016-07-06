@@ -80,6 +80,7 @@ public class WifiDirectBroadcastReceiver extends BroadcastReceiver {
             if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
                 // Wifi P2P is enabled
                 mActivity.showStatus("p2p wifi enabled");
+                mActivity.showError(""); // something good just happened, clear error field
             } else {
                 // Wi-Fi P2P is not enabled
                 mActivity.showError("p2p wifi is not enabled on this device");
@@ -94,13 +95,15 @@ public class WifiDirectBroadcastReceiver extends BroadcastReceiver {
             }
             mActivity.showDevices(peers);
 
-            int android_index = MainActivity.target_device_index(peers);
+            int android_index = MainActivity.targetDeviceIndex(peers);
             if (android_index > -1) {
-                mActivity.showStatus("Android device detected");
+                mActivity.showStatus("Target device detected");
+                mActivity.showError(""); // something good just happened, clear error field
                 mActivity.connect(peers.get(android_index));
             } else {
-                mActivity.showStatus("no android device detected");
+                mActivity.showStatus("no target devices detected");
                 mActivity.updateButtonText("DISABLED");
+                // restart discovery or wait until another peers_changed_action?
             }
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
             // Respond to new connection or disconnections
@@ -111,8 +114,8 @@ public class WifiDirectBroadcastReceiver extends BroadcastReceiver {
 
                     // We are connected with the other device, request connection
                     // info to find group owner IP
-                    mActivity.showStatus("Connected to Android device");
-
+                    mActivity.showStatus("Connected to target device");
+                    mActivity.showError(""); // something good just happened, clear error field
                     mActivity.updateButtonText("SEND");
                     mManager.requestConnectionInfo(mChannel, myConnectionInfoListener);
                 } else {

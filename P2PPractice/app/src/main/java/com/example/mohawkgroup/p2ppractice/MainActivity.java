@@ -26,6 +26,9 @@ public class MainActivity extends AppCompatActivity {
 
     IntentFilter mIntentFilter;
 
+    // array of names of devices that we want to connect with
+    public static final String[] TARGET_DEVICE_NAMES = {"Android_82bc", "Android_56b4"};
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,7 +49,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSuccess() {
                 showStatus("discovery success");
-                showError("");
+                showError(""); // something good just happened, clear error field
             }
 
             @Override
@@ -90,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
             public void onSuccess() {
                 // WiFiDirectBroadcastReceiver will notify us. Ignore for now.
                 showStatus("Successfully initiated connection");
-                showError("");
+                showError(""); // something good just happened, clear error field
 //                updateButtonText("SEND");
             }
 
@@ -105,16 +108,11 @@ public class MainActivity extends AppCompatActivity {
     // update text on screen with potential wifi connections
     public void showDevices(Collection<WifiP2pDevice> available_devices) {
         TextView txtView = (TextView) findViewById(R.id.p2p_devices);
-        String accumulator = "DEVICES: ";
+        String accumulator = "DEVICES:  ";
         for (WifiP2pDevice device : available_devices) {
-            accumulator = accumulator + device.deviceName + " ";
+            accumulator = accumulator + device.deviceName + "  ";
         }
         txtView.setText(accumulator);
-    }
-
-    public void showDevices(WifiP2pDevice connected_device) {
-        TextView txtView = (TextView) findViewById(R.id.p2p_devices);
-        txtView.setText("DEVICES: " + connected_device.deviceName);
     }
 
     public void showStatus(String s) {
@@ -132,24 +130,24 @@ public class MainActivity extends AppCompatActivity {
         txtView.setText("ERROR: " + s);
     }
 
-    // Our two target devices are "Android_82bc" and "Android_56b4"
-    public static int target_device_index(List<WifiP2pDevice> peers) {
-        int counter = 0;
-        for (WifiP2pDevice peer : peers) {
-            String name = peer.deviceName;
-            if (deviceNameContains(name, "Android_82bc") || deviceNameContains(name, "Android_82bc")) { // || contains_sink(name)) {
-                return counter;
+    // returns (lowest) index of a target device in peers
+    // returns -1 if there is no target device in peers
+    public static int targetDeviceIndex(List<WifiP2pDevice> peers) {
+        for (int i = 0; i < peers.size(); i++) { // not ideal, but since it's an ArrayList
+            String name = peers.get(i).deviceName;
+            for (String targetName : TARGET_DEVICE_NAMES) {
+                if (deviceNameContains(name, targetName)) {
+                    return i;
+                }
             }
-            counter++;
         }
         return -1;
     }
 
-    // return true if string contains the string "android"
-    public static boolean deviceNameContains(String deviceName, String s) {
-        Pattern pattern = Pattern.compile("s", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(deviceName);
-        return matcher.find();
+    // return true if string contains the deviceName contains targetName
+    public static boolean deviceNameContains(String deviceName, String targetName) {
+        return deviceName.toLowerCase().contains(targetName.toLowerCase());
+
     }
 
     // register the broadcast receiver with the intent values to be matched
