@@ -15,6 +15,8 @@ import android.os.Bundle;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.*;
@@ -23,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     WifiP2pManager mManager;
     Channel mChannel;
     BroadcastReceiver mReceiver;
+    ServerSocket serverSocket;
 
     IntentFilter mIntentFilter;
 
@@ -68,21 +71,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void connect(WifiP2pDevice device) {
-//            WifiP2pConfig config = new WifiP2pConfig();
-//            config.deviceAddress = device.deviceAddress;
-//            mManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
-//
-//                @Override
-//                public void onSuccess() {
-//                    //success logic
-//                }
-//
-//                @Override
-//                public void onFailure(int reason) {
-//                    //failure logic
-//                }
-//            });
-
         WifiP2pConfig config = new WifiP2pConfig();
         config.deviceAddress = device.deviceAddress;
         config.wps.setup = WpsInfo.PBC;
@@ -162,5 +150,16 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         unregisterReceiver(mReceiver);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        try {
+            // MAKE SURE YOU CLOSE THE SOCKET UPON EXITING
+            serverSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
