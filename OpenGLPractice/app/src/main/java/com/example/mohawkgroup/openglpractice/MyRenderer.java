@@ -32,7 +32,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     public volatile float xAngle = 0.0f;
     public volatile float yAngle = 0.0f;
 
-    private LinkedList<Triangle> triangles = new LinkedList<Triangle>();
     private double[] bounding_box = {Double.MAX_VALUE, -Double.MAX_VALUE,
                                         Double.MAX_VALUE, -Double.MAX_VALUE,
                                         Double.MAX_VALUE, -Double.MAX_VALUE};
@@ -42,26 +41,26 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     // my shader source code
     private final String vertexShaderCode =
-//            "uniform mat4 uMVMatrix;" + // model view (no projection)
+            "uniform mat4 uMVMatrix;" + // model view (no projection)
             "uniform mat4 uMVPMatrix;" +
 
-//                    "unifrom vec4 aColor;" + // color of triangle before we apply lambertian shading
-//                    "uniform vec3 light_dir; " + // direction of incident light, should be normalized
+                    "uniform vec4 aColor;" + // color of triangle before we apply lambertian shading
+                    "uniform vec3 light_dir; " + // direction of incident light, should be normalized
 
                     "attribute vec4 vPosition;" +
-//                    "attribute vec4 vNormal;" +
-//                    "attribute vec4 vColor;" + // color of triangle after we apply lambertian shading
+                    "attribute vec4 vNormal;" +
+                    "varying vec4 vColor;" + // color of triangle after we apply lambertian shading
 
                     "void main() {" +
                     "  gl_Position = uMVPMatrix * vPosition;" + // update gl_position
-//                    "  vec3 modelViewNormal = normalize(vec3(uMVMatrix * vNormal));" +
-//                    "  float lamber_factor = max(dot(modelViewNormal, light_dir;" +
-//                    "  vColor = aColor * lambert_factor;" +
+                    "  vec3 modelViewNormal = normalize(vec3(uMVMatrix * vNormal));" +
+                    "  float lambert_factor = max(dot(modelViewNormal, light_dir), 0.1);" +
+                    "  vColor = lambert_factor * aColor;" +
                     "}";
 
     private final String fragmentShaderCode =
             "precision mediump float;" +
-                    "uniform vec4 vColor;" +
+                    "varying vec4 vColor;" +
                     "void main() {" +
                     "  gl_FragColor = vColor;" +
                     "}";
@@ -121,20 +120,37 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // creates OpenGL ES program executables
         GLES20.glLinkProgram(myProgram);
 
-        List<Triangle> triangles = new LinkedList<Triangle>();
         // load up the model from file (exclude file extension)
         ModelLoader input_loader = new ModelLoader(context, "cube"); // name of stl goes here
 
-//        List<Float> normal_list = new ArrayList<Float>();
+        List<Triangle> triangles = new LinkedList<Triangle>();
+        List<Vertex> normals = new LinkedList<Vertex>();
+//        List<Float> packed_data_list = new LinkedList<Float>(); // XYZ XYZ XYZ NxNyNz ...
+        number_of_triangles = 0;
         double[] normal = new double[3];
         double[][] vertices = new double[3][3];
         while (input_loader.getNextFacet(normal, vertices)) {
-//            normal_list.add((float) normal[0]);
-//            normal_list.add((float) normal[1]);
-//            normal_list.add((float) normal[2]);
-
             Triangle temp_tri = new Triangle(vertices);
             triangles.add(temp_tri);
+            normals.add(new Vertex(normal[0], normal[1], normal[2]));
+
+            //
+
+//            Triangle temp_tri = new Triangle(vertices);
+//            triangles.add(temp_tri);
+//            float[] temp_vertice_array = temp_tri.getCoordsAsArray();
+//
+//            // add triangle vertex info to our packed data
+//            for (float vertex_coord : temp_vertice_array) {
+//                packed_data_list.add(vertex_coord);
+//            }
+//
+////            packed_data_list.add((float) normal[0]);
+////            packed_data_list.add((float) normal[1]);
+////            packed_data_list.add((float) normal[2]);
+
+            //
+
             update_bounding_box(vertices);
         }
 
@@ -167,23 +183,37 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         }
 
         // load vertex positions into a float array
-        // (# of triangles) * (vertices per triangle) * (floats per vertex)
-        float[] vertex_pos_array = new float[number_of_triangles * 3 * 3];
+        // (# of triangles) * (vertices per triangle + normals per triangle) * (floats per vertex or normal)
+        float[] packed_data_array = new float[(number_of_triangles) * (3 + 3) * 3];
         int position_index = 0;
-        for (Triangle triangle : triangles) {
-            // add the coordinates to the FloatBuffer
-            float[] temp_array = triangle.getCoordsAsArray();
-            for (int i = 0; i < temp_array.length; i++) {
-                vertex_pos_array[position_index] = temp_array[i];
-                position_index++;
-            }
-        }
+        for (int i = 0; i < number_of_triangles; i++) {
+            Triangle temp_tri = triangles.get(i);
+            Vertex temp_vertex =  normals.get(i);
 
-        // load normals into normal array
-//        float[] normal_array = new float[normal_list.size()];
-//        for (int i = 0; i < normal_list.size(); i++) {
-//            normal_array[i] = (float) normal_list.get(i);
-//        }
+            Vertex firstVertex = temp_tri.getFirstVertex();
+            packed_data_array[(18 * i)] = firstVertex.getX();
+            packed_data_array[(18 * i) + 1] = firstVertex.getY();
+            packed_data_array[(18 * i) + 2] = firstVertex.getZ();
+            packed_data_array[(18 * i) + 3] = temp_vertex.getX();
+            packed_data_array[(18 * i) + 4] = temp_vertex.getY();
+            packed_data_array[(18 * i) + 5] = temp_vertex.getZ();
+
+            Vertex secondVertex = temp_tri.getSecondVertex();
+            packed_data_array[(18 * i) + 6] = secondVertex.getX();
+            packed_data_array[(18 * i) + 7] = secondVertex.getY();
+            packed_data_array[(18 * i) + 8] = secondVertex.getZ();
+            packed_data_array[(18 * i) + 9] = temp_vertex.getX();
+            packed_data_array[(18 * i) + 10] = temp_vertex.getY();
+            packed_data_array[(18 * i) + 11] = temp_vertex.getZ();
+
+            Vertex thirdVertex = temp_tri.getThirdVertex();
+            packed_data_array[(18 * i) + 12] = thirdVertex.getX();
+            packed_data_array[(18 * i) + 13] = thirdVertex.getY();
+            packed_data_array[(18 * i) + 14] = thirdVertex.getZ();
+            packed_data_array[(18 * i) + 15] = temp_vertex.getX();
+            packed_data_array[(18 * i) + 16] = temp_vertex.getY();
+            packed_data_array[(18 * i) + 17] = temp_vertex.getZ();
+        }
 
         // Add program to OpenGL ES environment
         GLES20.glUseProgram(myProgram);
@@ -192,65 +222,53 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // get handle to vertex shader's vPosition member
         myPositionHandle = GLES20.glGetAttribLocation(myProgram, "vPosition");
 
-        // get handle to vertex shader's vNormal member
-//        myNormalHandle = GLES20.glGetAttribLocation(myProgram, "vNormal");
+//         get handle to vertex shader's vNormal member
+        myNormalHandle = GLES20.glGetAttribLocation(myProgram, "vNormal");
 
         // get handle to fragment shader's vColor member
-        myColorHandle = GLES20.glGetUniformLocation(myProgram, "vColor");
+        myColorHandle = GLES20.glGetUniformLocation(myProgram, "aColor");
         GLES20.glUniform4fv(myColorHandle, 1, color, 0); // load color into GPU memory
+
+        myLightDirHandle = GLES20.glGetUniformLocation(myProgram, "light_dir");
+        GLES20.glUniform3f(myLightDirHandle, 0.0f, 0.0f, -1.0f);
 
         // set light direction
 //        myLightDirHandle = GLES20.glGetAttribLocation(myProgram, "light_dir");
 //        GLES20.glUniform3f(myLightDirHandle, 0.0f, 0.0f, 1.0f);
 
         // Create buffer containing all of our vertex data
-        int number_of_bytes = vertex_pos_array.length * 4; // (# of floats) * (bytes per float)
+        int number_of_bytes = packed_data_array.length * 4; // (# of floats) * (bytes per float)
         ByteBuffer bb = ByteBuffer.allocateDirect(number_of_bytes);
         // use the device hardware's native byte order
         bb.order(ByteOrder.nativeOrder());
 
         // create a floating point buffer from the ByteBuffer
-        FloatBuffer cVertexBuffer = bb.asFloatBuffer();
+        FloatBuffer cDataBuffer = bb.asFloatBuffer();
         // add the coordinates to the FloatBuffer
-        cVertexBuffer.put(vertex_pos_array);
+        for (float datum : packed_data_array) {
+            System.out.println(datum);
+        }
+        cDataBuffer.put(packed_data_array);
         // set the buffer to read the first coordinate
-        cVertexBuffer.position(0);
-
-        // Create buffer containing normal data
-//        int number_of_normal_bytes = normal_array.length * 4; // (# of floats) * (bytes per float)
-//        ByteBuffer bbn = ByteBuffer.allocateDirect(number_of_bytes);
-//        // use the device hardware's native byte order
-//        bbn.order(ByteOrder.nativeOrder());
-//
-//        // create a floating point buffer from the ByteBuffer
-//        FloatBuffer cNormalBuffer = bbn.asFloatBuffer();
-//        // add the coordinates to the FloatBuffer
-//        cNormalBuffer.put(normal_array);
-//        // set the buffer to read the first coordinate
-//        cNormalBuffer.position(0);
+        cDataBuffer.position(0);
 
         int[] gBuffers = new int[3];
         GLES20.glGenBuffers(3, gBuffers, 0);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gBuffers[0]);
 
-        // Give our vertices to OpenGL.
+        // Give our data to OpenGL.
         GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,
                             number_of_bytes,
-                            cVertexBuffer,
+                            cDataBuffer,
                             GLES20.GL_STATIC_DRAW // we will NOT update positions dynamically
         );
 
 //        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gBuffers[1]);
 
-        // Give our normals to OpenGL.
-//        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,
-//                number_of_normal_bytes,
-//                cNormalBuffer,
-//                GLES20.GL_STATIC_DRAW // we will NOT update positions dynamically
-//        );
-
         // IMPORTANT: Unbind from the buffer when we're done with it.
 
+        // (floats_per_vertex * vertices_per_triangle + floats_per_normal * normals_per_triangle) * bytes_per_float
+        int stride = (3 + 3) * 4;
         // attach our vertex info to myPositionHandle
         GLES20.glEnableVertexAttribArray(myPositionHandle);
         GLES20.glVertexAttribPointer(
@@ -258,18 +276,28 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                 3,                  // size
                 GLES20.GL_FLOAT,    // type
                 false,              // normalized?
-                0,                  // stride
+                stride,                  // stride
                 0                   // array buffer offset
         );
 
+        GLES20.glEnableVertexAttribArray(myNormalHandle);
+        GLES20.glVertexAttribPointer(
+                myNormalHandle,
+                3,
+                GLES20.GL_FLOAT,
+                false,
+                stride,
+                3 * 4);
+
         // IMPORTANT: Unbind from the buffer when we're done with it.
-//        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
         // get view matrix
         Matrix.setLookAtM(myViewMatrix, 0, 0.0f, 0.0f,
                 25.0f, // = z_min - (z_min + z_max)/2
                 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
+        myMVMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVMatrix");
 
     }
 
@@ -278,22 +306,16 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // Redraw background color
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-        // Calculate the projection and view transformation
-        Matrix.multiplyMM(myMVPMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
-
         // Calculate rotation matrix
         Matrix.setRotateM(xRotationMatrix, 0, xAngle, 1.0f, 0, 0);
         Matrix.setRotateM(yRotationMatrix, 0, yAngle, 0, 1.0f, 0);
         Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
 
+        Matrix.multiplyMM(scratch, 0, myViewMatrix, 0, totRotationMatrix, 0);
+        GLES20.glUniformMatrix4fv(myMVMatrixHandle, 1, false, scratch, 0);
+
 //        Matrix.multiplyMM(myMVMatrix, 0, myViewMatrix, 0, totRotationMatrix, 0);
         Matrix.multiplyMM(scratch, 0, myMVPMatrix, 0, totRotationMatrix, 0);
-
-//        for (Float f : myMVPMatrix) {
-//            System.out.println(f);
-//        }
-
-//        Matrix.setIdentityM(myMVPMatrix, 0);
 
         // get handle to shape's transformation matrix
         myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix"); // should definitely be outside triangle class
@@ -317,7 +339,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // in the onDrawFrame() method
         Matrix.frustumM(myProjectionMatrix, 0, -ratio, ratio, -1, 1, 3.0f, 47.0f);
 
-//        Arrays.fill(myProjectionMatrix, 0.0f);
+        // Calculate the projection and view transformation
+        Matrix.multiplyMM(myMVPMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
     }
 
     public static int loadShader(int type, String shaderCode) {

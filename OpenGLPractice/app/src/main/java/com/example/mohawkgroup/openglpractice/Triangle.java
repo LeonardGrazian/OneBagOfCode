@@ -135,4 +135,10 @@ class Triangle {
 //        }
         return fArray;
     }
+
+    public Vertex getFirstVertex() { return triangleCoords[0]; }
+
+    public Vertex getSecondVertex() { return triangleCoords[1]; }
+
+    public Vertex getThirdVertex() { return triangleCoords[2]; }
 }
