@@ -41,7 +41,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     // my shader source code
     private final String vertexShaderCode =
-            "uniform mat4 uMVMatrix;" + // model view (no projection)
+            "uniform mat4 normalTransformMatrix;" + // model view (no projection)
             "uniform mat4 uMVPMatrix;" +
 
                     "uniform vec4 aColor;" + // color of triangle before we apply lambertian shading
@@ -53,9 +53,26 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
                     "void main() {" +
                     "  gl_Position = uMVPMatrix * vPosition;" + // update gl_position
-                    "  vec3 modelViewNormal = normalize(vec3(uMVMatrix * vNormal));" +
-                    "  float lambert_factor = max(dot(modelViewNormal, light_dir), 0.1);" +
+
+                    "  vec3 modelViewNormal = normalize(vec3(normalTransformMatrix * vNormal));" +
+                    "  float lambert_factor = max(-dot(vec3(modelViewNormal), light_dir), 0.1);" +
                     "  vColor = lambert_factor * aColor;" +
+
+//                    "  vColor = aColor;" +
+
+//                    "  float normalX = max(vNormal.x, -vNormal.x);" +
+//                    "  float normalY = max(vNormal.y, -vNormal.y);" +
+//                    "  float normalZ = max(vNormal.z, -vNormal.z);" +
+//                    "  if ((normalX > normalY) && (normalX > normalZ)) {" +
+//                    "    vColor = vec4(1.0, 0.0, 0.0, 1.0);" +
+//                    "  } else if ((normalY > normalX) && (normalY > normalZ)) {" +
+//                    "    vColor = vec4(0.0, 1.0, 0.0, 1.0);" +
+//                    "  } else if ((normalZ > normalX) && (normalZ > normalY)) {" +
+//                    "    vColor = vec4(0.0, 0.0, 1.0, 1.0);" +
+//                    "  } else {" +
+//                    "    vColor = vec4(0.0, 0.0, 0.0, 1.0);" +
+//                    "  }" +
+
                     "}";
 
     private final String fragmentShaderCode =
@@ -73,13 +90,13 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     private int myLightDirHandle;
     float[] color = { 0.63671875f, 0.76953125f, 0.22265625f, 1.0f};
     private int myMVPMatrixHandle;
-    private int myMVMatrixHandle;
+    private int normalTransformMatrixHandle;
 
     // mMVPMatrix is an abbreviation for "Model View Projection Matrix"
     private final float[] myMVPMatrix = new float[16];
     private final float[] myProjectionMatrix = new float[16];
     private final float[] myViewMatrix = new float[16];
-    private final float[] myMVMatrix = new float[16];
+    private final float[] normalTransformMatrix = new float[16];
     private final float[] myTranslationMatrix = new float[16];
     float[] xRotationMatrix = new float[16]; // rotates about x axis, caused by y movement
     float[] yRotationMatrix = new float[16]; // rotates about y axis, caused by x movement
@@ -245,9 +262,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // create a floating point buffer from the ByteBuffer
         FloatBuffer cDataBuffer = bb.asFloatBuffer();
         // add the coordinates to the FloatBuffer
-        for (float datum : packed_data_array) {
-            System.out.println(datum);
-        }
         cDataBuffer.put(packed_data_array);
         // set the buffer to read the first coordinate
         cDataBuffer.position(0);
@@ -297,7 +311,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                 25.0f, // = z_min - (z_min + z_max)/2
                 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-        myMVMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVMatrix");
+        normalTransformMatrixHandle = GLES20.glGetUniformLocation(myProgram, "normalTransformMatrix");
 
     }
 
@@ -312,18 +326,16 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
 
         Matrix.multiplyMM(scratch, 0, myViewMatrix, 0, totRotationMatrix, 0);
-        GLES20.glUniformMatrix4fv(myMVMatrixHandle, 1, false, scratch, 0);
+        GLES20.glUniformMatrix4fv(normalTransformMatrixHandle, 1, false, scratch, 0);
 
-//        Matrix.multiplyMM(myMVMatrix, 0, myViewMatrix, 0, totRotationMatrix, 0);
         Matrix.multiplyMM(scratch, 0, myMVPMatrix, 0, totRotationMatrix, 0);
 
         // get handle to shape's transformation matrix
         myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix"); // should definitely be outside triangle class
-//        myMVMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVMatrix");
 
         // Pass the projection and view transformation to the shader
         GLES20.glUniformMatrix4fv(myMVPMatrixHandle, 1, false, scratch, 0);
-//        GLES20.glUniformMatrix4fv(myMVMatrixHandle, 1, false, myMVMatrix, 0);
+        GLES20.glUniformMatrix4fv(normalTransformMatrixHandle, 1, false, totRotationMatrix, 0);
         //
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, number_of_triangles * 3);
