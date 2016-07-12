@@ -38,6 +38,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                                         // = {x_min, x_max, y_min, y_max, z_min, z_max)
     private double[] box_size = {0.0, 0.0, 0.0}; // = {delta_x, delta_y, delta_z}
     private float[] box_middle = {0.0f, 0.0f, 0.0f}; // = {x_avg, y_avg, z_avg}
+    private float max_box_size;
 
     // my shader source code
     private final String vertexShaderCode =
@@ -55,8 +56,9 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                     "  gl_Position = uMVPMatrix * vPosition;" + // update gl_position
 
                     "  vec3 modelViewNormal = normalize(vec3(normalTransformMatrix * vNormal));" +
-                    "  float lambert_factor = max(-dot(vec3(modelViewNormal), light_dir), 0.1);" +
+                    "  float lambert_factor = max(dot(vec3(modelViewNormal), light_dir), 0.1);" +
                     "  vColor = lambert_factor * aColor;" +
+                    "  vColor.w = 1.0;" +
 
 //                    "  vColor = aColor;" +
 
@@ -117,7 +119,12 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // enable face culling feature
         GLES20.glEnable(GL10.GL_CULL_FACE);
         // specify which faces to not draw
-        GLES20.glCullFace(GL10.GL_BACK);
+        GLES20.glCullFace(GL10.GL_FRONT);
+
+        // Enable depth test
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        // Accept fragment if it closer to the camera than the former one
+        GLES20.glDepthFunc(GLES20.GL_LESS);
 
         // set up compile and link shaders
         int vertexShader = MyRenderer.loadShader(GLES20.GL_VERTEX_SHADER,
@@ -138,7 +145,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glLinkProgram(myProgram);
 
         // load up the model from file (exclude file extension)
-        ModelLoader input_loader = new ModelLoader(context, "cube"); // name of stl goes here
+        ModelLoader input_loader = new ModelLoader(context, "squirtle"); // name of stl goes here
 
         List<Triangle> triangles = new LinkedList<Triangle>();
         List<Vertex> normals = new LinkedList<Vertex>();
@@ -150,23 +157,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
             Triangle temp_tri = new Triangle(vertices);
             triangles.add(temp_tri);
             normals.add(new Vertex(normal[0], normal[1], normal[2]));
-
-            //
-
-//            Triangle temp_tri = new Triangle(vertices);
-//            triangles.add(temp_tri);
-//            float[] temp_vertice_array = temp_tri.getCoordsAsArray();
-//
-//            // add triangle vertex info to our packed data
-//            for (float vertex_coord : temp_vertice_array) {
-//                packed_data_list.add(vertex_coord);
-//            }
-//
-////            packed_data_list.add((float) normal[0]);
-////            packed_data_list.add((float) normal[1]);
-////            packed_data_list.add((float) normal[2]);
-
-            //
 
             update_bounding_box(vertices);
         }
@@ -192,6 +182,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         box_middle[0] = (float) (bounding_box[0] + bounding_box[1]) / 2;
         box_middle[1] = (float) (bounding_box[2] + bounding_box[3]) / 2;
         box_middle[2] = (float) (bounding_box[4] + bounding_box[5]) / 2;
+
+        max_box_size = (float) Math.max(Math.max(box_size[0], box_size[1]), box_size[2]);
         print_bounding_box();
 
         // put model at origin TODO: find a way to do this with matrix transformations
@@ -308,7 +300,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         // get view matrix
         Matrix.setLookAtM(myViewMatrix, 0, 0.0f, 0.0f,
-                25.0f, // = z_min - (z_min + z_max)/2
+                10.0f * max_box_size, //25.0f, // = z_min - (z_min + z_max)/2
                 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
         normalTransformMatrixHandle = GLES20.glGetUniformLocation(myProgram, "normalTransformMatrix");
@@ -318,7 +310,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     @Override
     public void onDrawFrame(GL10 unused) {
         // Redraw background color
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
         // Calculate rotation matrix
         Matrix.setRotateM(xRotationMatrix, 0, xAngle, 1.0f, 0, 0);
@@ -349,7 +341,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         // this projection matrix is applied to object coordinates
         // in the onDrawFrame() method
-        Matrix.frustumM(myProjectionMatrix, 0, -ratio, ratio, -1, 1, 3.0f, 47.0f);
+        Matrix.frustumM(myProjectionMatrix, 0, -ratio, ratio, -1, 1, 18.0f * Math.min(ratio, 1.0f), 20.0f * max_box_size); //5.0f, 145.0f); //3.0f, 47.0f);
 
         // Calculate the projection and view transformation
         Matrix.multiplyMM(myMVPMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
