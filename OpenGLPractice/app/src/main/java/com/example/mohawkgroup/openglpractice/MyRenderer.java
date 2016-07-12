@@ -31,6 +31,10 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     private Context context;
     public volatile float xAngle = 0.0f;
     public volatile float yAngle = 0.0f;
+    // up direction from perspective of model, last coord indicates that it's a direction
+    public volatile float[] upDirection = {0.0f, 1.0f, 0.0f, 0.0f};
+    // direction model is facing, initialized towards camera, last coord indicates that it's a direction
+    public volatile float[] facingDirection = {0.0f, 0.0f, 1.0f, 0.0f};
 
     private double[] bounding_box = {Double.MAX_VALUE, -Double.MAX_VALUE,
                                         Double.MAX_VALUE, -Double.MAX_VALUE,
@@ -56,7 +60,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                     "  gl_Position = uMVPMatrix * vPosition;" + // update gl_position
 
                     "  vec3 modelViewNormal = normalize(vec3(normalTransformMatrix * vNormal));" +
-                    "  float lambert_factor = max(dot(vec3(modelViewNormal), light_dir), 0.1);" +
+                    "  float lambert_factor = max(-dot(vec3(modelViewNormal), light_dir), 0.1);" +
                     "  vColor = lambert_factor * aColor;" +
                     "  vColor.w = 1.0;" +
 
@@ -96,10 +100,11 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     // mMVPMatrix is an abbreviation for "Model View Projection Matrix"
     private final float[] myMVPMatrix = new float[16];
+    private final float[] myViewProjectionMatrix = new float[16];
     private final float[] myProjectionMatrix = new float[16];
     private final float[] myViewMatrix = new float[16];
     private final float[] normalTransformMatrix = new float[16];
-    private final float[] myTranslationMatrix = new float[16];
+    private final float[] myModelMatrix = new float[16];
     float[] xRotationMatrix = new float[16]; // rotates about x axis, caused by y movement
     float[] yRotationMatrix = new float[16]; // rotates about y axis, caused by x movement
     float[] totRotationMatrix = new float[16];
@@ -119,7 +124,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // enable face culling feature
         GLES20.glEnable(GL10.GL_CULL_FACE);
         // specify which faces to not draw
-        GLES20.glCullFace(GL10.GL_FRONT);
+        GLES20.glCullFace(GL10.GL_BACK);
 
         // Enable depth test
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
@@ -145,7 +150,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glLinkProgram(myProgram);
 
         // load up the model from file (exclude file extension)
-        ModelLoader input_loader = new ModelLoader(context, "squirtle"); // name of stl goes here
+        ModelLoader input_loader = new ModelLoader(context, "cube"); // name of stl goes here
 
         List<Triangle> triangles = new LinkedList<Triangle>();
         List<Vertex> normals = new LinkedList<Vertex>();
@@ -187,41 +192,51 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         print_bounding_box();
 
         // put model at origin TODO: find a way to do this with matrix transformations
-        for (Triangle triangle : triangles) {
-            triangle.translate(new Vertex(-box_middle[0], -box_middle[1], -box_middle[2]));
-        }
+//        for (Triangle triangle : triangles) {
+//            triangle.translate(new Vertex(-box_middle[0], -box_middle[1], -box_middle[2]));
+//        }
 
         // load vertex positions into a float array
         // (# of triangles) * (vertices per triangle + normals per triangle) * (floats per vertex or normal)
-        float[] packed_data_array = new float[(number_of_triangles) * (3 + 3) * 3];
+        float[] packed_data_array = new float[(number_of_triangles) * (3 + 3) * 4];
+        int step_size = (3 + 3) * 4; // (vertices per triangle + normals per triangle) * (floats per vertex or normal)
         int position_index = 0;
         for (int i = 0; i < number_of_triangles; i++) {
             Triangle temp_tri = triangles.get(i);
             Vertex temp_vertex =  normals.get(i);
 
+            // Add vertex 1 and the normal for this tri
             Vertex firstVertex = temp_tri.getFirstVertex();
-            packed_data_array[(18 * i)] = firstVertex.getX();
-            packed_data_array[(18 * i) + 1] = firstVertex.getY();
-            packed_data_array[(18 * i) + 2] = firstVertex.getZ();
-            packed_data_array[(18 * i) + 3] = temp_vertex.getX();
-            packed_data_array[(18 * i) + 4] = temp_vertex.getY();
-            packed_data_array[(18 * i) + 5] = temp_vertex.getZ();
+            packed_data_array[(step_size * i)] = firstVertex.getX();
+            packed_data_array[(step_size * i) + 1] = firstVertex.getY();
+            packed_data_array[(step_size * i) + 2] = firstVertex.getZ();
+            packed_data_array[(step_size * i) + 3] = 1.0f; // this is a position
+            packed_data_array[(step_size * i) + 4] = temp_vertex.getX();
+            packed_data_array[(step_size * i) + 5] = temp_vertex.getY();
+            packed_data_array[(step_size * i) + 6] = temp_vertex.getZ();
+            packed_data_array[(step_size * i) + 7] = 0.0f; // this is a direction
 
+            // Add vertex 2 and the normal for this tri
             Vertex secondVertex = temp_tri.getSecondVertex();
-            packed_data_array[(18 * i) + 6] = secondVertex.getX();
-            packed_data_array[(18 * i) + 7] = secondVertex.getY();
-            packed_data_array[(18 * i) + 8] = secondVertex.getZ();
-            packed_data_array[(18 * i) + 9] = temp_vertex.getX();
-            packed_data_array[(18 * i) + 10] = temp_vertex.getY();
-            packed_data_array[(18 * i) + 11] = temp_vertex.getZ();
+            packed_data_array[(step_size * i) + 8] = secondVertex.getX();
+            packed_data_array[(step_size * i) + 9] = secondVertex.getY();
+            packed_data_array[(step_size * i) + 10] = secondVertex.getZ();
+            packed_data_array[(step_size * i) + 11] = 1.0f; // this is a position
+            packed_data_array[(step_size * i) + 12] = temp_vertex.getX();
+            packed_data_array[(step_size * i) + 13] = temp_vertex.getY();
+            packed_data_array[(step_size * i) + 14] = temp_vertex.getZ();
+            packed_data_array[(step_size * i) + 15] = 0.0f; // this is a direction
 
+            // Add vertex 3 and the normal for this tri
             Vertex thirdVertex = temp_tri.getThirdVertex();
-            packed_data_array[(18 * i) + 12] = thirdVertex.getX();
-            packed_data_array[(18 * i) + 13] = thirdVertex.getY();
-            packed_data_array[(18 * i) + 14] = thirdVertex.getZ();
-            packed_data_array[(18 * i) + 15] = temp_vertex.getX();
-            packed_data_array[(18 * i) + 16] = temp_vertex.getY();
-            packed_data_array[(18 * i) + 17] = temp_vertex.getZ();
+            packed_data_array[(step_size * i) + 16] = thirdVertex.getX();
+            packed_data_array[(step_size * i) + 17] = thirdVertex.getY();
+            packed_data_array[(step_size * i) + 18] = thirdVertex.getZ();
+            packed_data_array[(step_size * i) + 19] = 1.0f; // this is a position
+            packed_data_array[(step_size * i) + 20] = temp_vertex.getX();
+            packed_data_array[(step_size * i) + 21] = temp_vertex.getY();
+            packed_data_array[(step_size * i) + 22] = temp_vertex.getZ();
+            packed_data_array[(step_size * i) + 23] = 0.0f; // this is a direction
         }
 
         // Add program to OpenGL ES environment
@@ -240,6 +255,11 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         myLightDirHandle = GLES20.glGetUniformLocation(myProgram, "light_dir");
         GLES20.glUniform3f(myLightDirHandle, 0.0f, 0.0f, -1.0f);
+
+        // get handle to shape's transformation matrix
+        myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix");
+
+        normalTransformMatrixHandle = GLES20.glGetUniformLocation(myProgram, "normalTransformMatrix");
 
         // set light direction
 //        myLightDirHandle = GLES20.glGetAttribLocation(myProgram, "light_dir");
@@ -274,12 +294,12 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // IMPORTANT: Unbind from the buffer when we're done with it.
 
         // (floats_per_vertex * vertices_per_triangle + floats_per_normal * normals_per_triangle) * bytes_per_float
-        int stride = (3 + 3) * 4;
+        int stride = (4 + 4) * 4;
         // attach our vertex info to myPositionHandle
         GLES20.glEnableVertexAttribArray(myPositionHandle);
         GLES20.glVertexAttribPointer(
                 myPositionHandle,   // maps the vertex coords to vPosition in shader code
-                3,                  // size
+                4,                  // size
                 GLES20.GL_FLOAT,    // type
                 false,              // normalized?
                 stride,                  // stride
@@ -289,11 +309,11 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glEnableVertexAttribArray(myNormalHandle);
         GLES20.glVertexAttribPointer(
                 myNormalHandle,
-                3,
+                4,
                 GLES20.GL_FLOAT,
                 false,
                 stride,
-                3 * 4);
+                4 * 4); // (4 floats per vertex) * (4 bytes per float)
 
         // IMPORTANT: Unbind from the buffer when we're done with it.
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
@@ -303,8 +323,9 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                 10.0f * max_box_size, //25.0f, // = z_min - (z_min + z_max)/2
                 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-        normalTransformMatrixHandle = GLES20.glGetUniformLocation(myProgram, "normalTransformMatrix");
-
+        // for transitioning to model space
+        Matrix.setIdentityM(scratch, 0);
+        Matrix.translateM(myModelMatrix, 0,scratch, 0, -box_middle[0], -box_middle[1], -box_middle[2]);
     }
 
     @Override
@@ -317,16 +338,15 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         Matrix.setRotateM(yRotationMatrix, 0, yAngle, 0, 1.0f, 0);
         Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
 
-        Matrix.multiplyMM(scratch, 0, myViewMatrix, 0, totRotationMatrix, 0);
-        GLES20.glUniformMatrix4fv(normalTransformMatrixHandle, 1, false, scratch, 0);
-
-        Matrix.multiplyMM(scratch, 0, myMVPMatrix, 0, totRotationMatrix, 0);
-
-        // get handle to shape's transformation matrix
-        myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix"); // should definitely be outside triangle class
+        // [projection] * [view] * [rotation] * [translation]
+        Matrix.multiplyMM(scratch, 0, totRotationMatrix, 0, myModelMatrix, 0);
+        Matrix.multiplyMM(myMVPMatrix, 0, myViewProjectionMatrix, 0, scratch, 0); // scratch
+//        for (int i = 0; i < 16; i++) {
+//            System.out.println(totRotationMatrix[i]);
+//        }
 
         // Pass the projection and view transformation to the shader
-        GLES20.glUniformMatrix4fv(myMVPMatrixHandle, 1, false, scratch, 0);
+        GLES20.glUniformMatrix4fv(myMVPMatrixHandle, 1, false, myMVPMatrix, 0);
         GLES20.glUniformMatrix4fv(normalTransformMatrixHandle, 1, false, totRotationMatrix, 0);
         //
 
@@ -344,7 +364,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         Matrix.frustumM(myProjectionMatrix, 0, -ratio, ratio, -1, 1, 18.0f * Math.min(ratio, 1.0f), 20.0f * max_box_size); //5.0f, 145.0f); //3.0f, 47.0f);
 
         // Calculate the projection and view transformation
-        Matrix.multiplyMM(myMVPMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
+        Matrix.multiplyMM(myViewProjectionMatrix, 0, myProjectionMatrix, 0, myViewMatrix, 0);
     }
 
     public static int loadShader(int type, String shaderCode) {
@@ -416,5 +436,83 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
     public void setXAngle(float angle) {
         xAngle = angle;
+    }
+
+    // updates orientation according to direction screen is being swiped
+    // also updates orientation matrix
+    // the axis of rotation is perpendicular both the swipe direction and z
+    public void updateOrientation(float dx, float dy) {
+        float[] rotation_axis = {-dy, dx, 0.0f};
+        float rotation_angle = (float) Math.sqrt((double) (dx * dx + dy * dy));
+        float[] temp_rotation_matrix = new float[16];
+        Matrix.setRotateM(temp_rotation_matrix,
+                            0,
+                            rotation_angle,
+                            rotation_axis[0],
+                            rotation_axis[1],
+                            rotation_axis[2]);
+
+        float[] scratch_direction = new float[4];
+        Matrix.multiplyMV(scratch_direction, 0, temp_rotation_matrix, 0, upDirection, 0);
+//        scratch_direction = normalizeVector(scratch_direction); // normalize scratch_direction
+        float[] rotation_axis_A = normalizeVector(cross(upDirection, scratch_direction));
+        Matrix.setRotateM(xRotationMatrix,
+                            0,
+                            (float) Math.acos((double) dot(upDirection, scratch_direction)),
+                            rotation_axis_A[0],
+                            rotation_axis_A[1],
+                            rotation_axis_A[2]);
+//        upDirection = scratch_direction;
+        System.arraycopy(scratch_direction, 0, upDirection, 0, 4);
+
+        Matrix.multiplyMV(scratch_direction, 0, temp_rotation_matrix, 0, facingDirection, 0);
+//        scratch_direction = normalizeVector(scratch_direction); // normalize scratch_direction
+        Matrix.setRotateM(yRotationMatrix,
+                            0,
+                            (float) Math.acos((double) dot(facingDirection, scratch_direction)),
+                            upDirection[0],
+                            upDirection[1],
+                            upDirection[2]);
+//        facingDirection = scratch_direction;
+        System.arraycopy(scratch_direction, 0, facingDirection, 0, 4);
+
+        Matrix.multiplyMM(totRotationMatrix, 0, yRotationMatrix, 0, xRotationMatrix, 0);
+    }
+
+    // only normalizes first 3 components
+    public static float[] normalizeVector(float[] input_vector) {
+        int number_of_elements = 3; // input_vector.length;
+        float square_accumulator = 0;
+        for (int i = 0; i < number_of_elements; i++) {
+            square_accumulator += (float) Math.pow(input_vector[i], 2);
+        }
+
+        float[] output_vector = new float[number_of_elements];
+        for (int i = 0; i < number_of_elements; i++) {
+            output_vector[i] = input_vector[i] / (float) Math.sqrt(square_accumulator);
+        }
+//        output_vector[3] = input_vector[3];
+        return output_vector;
+    }
+
+    // only cares about first 3 elements
+    public static float dot(float[] v1, float[] v2) {
+        int number_of_elements = 3;
+        float accumulator = 0;
+        for (int i = 0; i < number_of_elements; i++) {
+            accumulator += v1[i] * v2[i];
+        }
+        return accumulator;
+    }
+
+    // assumes input vectors have 4 elements
+    // last element of returned matrix is the same as last element of first argument
+    public static float[] cross(float[] v1, float[] v2) {
+        float[] output_vector = new float[4];
+        output_vector[0] = v1[1] * v2[2] - v1[2] * v2[1];
+        output_vector[1] = -(v1[0] * v2[2] - v1[2] * v1[0]);
+        output_vector[2] = v1[0] * v2[1] - v1[1] * v2[0];
+        output_vector[3] = v1[3];
+        return output_vector;
     }
 }
