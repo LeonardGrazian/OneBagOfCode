@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
 class MyGLSurfaceView extends GLSurfaceView {
     private final MyRenderer myRenderer;
 
-    private final float TOUCH_SCALE_FACTOR = 180.0f / 320;
+    private final float TOUCH_SCALE_FACTOR = 90.0f / 320;
     private float myPreviousX;
     private float myPreviousY;
 
@@ -55,15 +55,21 @@ class MyGLSurfaceView extends GLSurfaceView {
         myRenderer = new MyRenderer();
         myRenderer.setContext(c);
 
+//        setRenderMode(RENDERMODE_WHEN_DIRTY);
+
         setRenderer(myRenderer); // choose MyGLRenderer to execute graphics pipeline
-//        setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY); // render only if there's a state change
+        setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY); // render only if there's a state change
+        requestRender(); // necessary?
     }
 
+    // respond to touch event
+    // currently only responds to finger dragging (causes model to rotate)
+    // TODO: respond to other touch events (e.g. pinch to zoom)
+    // TODO: major bug!!! hold finger down, tap with another finger, image disappears, why? rotation matrix must me set to 0's, but how and how to prevent this?
+    // TODO: once above bug is fixed, use
     @Override
     public boolean onTouchEvent(MotionEvent e) {
-        // respond to touch event
-        // currently only responds to finger dragging (causes model to rotate)
-        // TODO: respond to other touch events (e.g. pinch to zoom)
+
         float x = e.getX();
         float y = e.getY();
 
@@ -73,22 +79,24 @@ class MyGLSurfaceView extends GLSurfaceView {
                 float dx = x - myPreviousX;
                 float dy = y - myPreviousY;
 
-                // reverse direction of rotation above the mid-line
-                if (y > getHeight() / 2) {
-                    dx = dx * -1 ;
-                }
+//                // reverse direction of rotation above the mid-line
+//                if (y > getHeight() / 2) {
+//                    dx = dx * -1 ;
+//                }
+//
+//                // reverse direction of rotation to left of the mid-line
+//                if (x < getWidth() / 2) {
+//                    dy = dy * -1 ;
+//                }
 
-                // reverse direction of rotation to left of the mid-line
-                if (x < getWidth() / 2) {
-                    dy = dy * -1 ;
-                }
+                myRenderer.updateOrientation(dx * TOUCH_SCALE_FACTOR, -dy * TOUCH_SCALE_FACTOR);
 
-                myRenderer.setYAngle(
-                        myRenderer.getYAngle() -
-                                (dx * TOUCH_SCALE_FACTOR));
-                myRenderer.setXAngle(
-                        myRenderer.getXAngle() -
-                                (dy * TOUCH_SCALE_FACTOR));
+//                myRenderer.setYAngle(
+//                        myRenderer.getYAngle() -
+//                                (dx * TOUCH_SCALE_FACTOR));
+//                myRenderer.setXAngle(
+//                        myRenderer.getXAngle() -
+//                                (dy * TOUCH_SCALE_FACTOR));
 
                 requestRender();
         }

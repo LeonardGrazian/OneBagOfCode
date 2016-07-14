@@ -29,12 +29,6 @@ import org.j3d.loaders.stl.STLFileReader;
  */
 public class MyRenderer implements GLSurfaceView.Renderer {
     private Context context;
-    public volatile float xAngle = 0.0f;
-    public volatile float yAngle = 0.0f;
-    // up direction from perspective of model, last coord indicates that it's a direction
-    public volatile float[] upDirection = {0.0f, 1.0f, 0.0f, 0.0f};
-    // direction model is facing, initialized towards camera, last coord indicates that it's a direction
-    public volatile float[] facingDirection = {0.0f, 0.0f, 1.0f, 0.0f};
 
     private double[] bounding_box = {Double.MAX_VALUE, -Double.MAX_VALUE,
                                         Double.MAX_VALUE, -Double.MAX_VALUE,
@@ -105,8 +99,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     private final float[] myViewMatrix = new float[16];
     private final float[] normalTransformMatrix = new float[16];
     private final float[] myModelMatrix = new float[16];
-    float[] xRotationMatrix = new float[16]; // rotates about x axis, caused by y movement
-    float[] yRotationMatrix = new float[16]; // rotates about y axis, caused by x movement
     float[] totRotationMatrix = new float[16];
     float[] scratch = new float[16];
 
@@ -150,35 +142,58 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glLinkProgram(myProgram);
 
         // load up the model from file (exclude file extension)
-        ModelLoader input_loader = new ModelLoader(context, "cube"); // name of stl goes here
+        ModelLoader input_loader = new ModelLoader(context, "squirtle"); // name of stl goes here
 
-        List<Triangle> triangles = new LinkedList<Triangle>();
-        List<Vertex> normals = new LinkedList<Vertex>();
-//        List<Float> packed_data_list = new LinkedList<Float>(); // XYZ XYZ XYZ NxNyNz ...
+        List<Float> packed_data_list = new LinkedList<Float>(); // XYZ XYZ XYZ NxNyNz ...
         number_of_triangles = 0;
         double[] normal = new double[3];
         double[][] vertices = new double[3][3];
         while (input_loader.getNextFacet(normal, vertices)) {
-            Triangle temp_tri = new Triangle(vertices);
-            triangles.add(temp_tri);
-            normals.add(new Vertex(normal[0], normal[1], normal[2]));
+            number_of_triangles++;
+
+            // Add vertex 1 and the normal for this tri
+            packed_data_list.add((float) vertices[0][0]);
+            packed_data_list.add((float) vertices[0][1]);
+            packed_data_list.add((float) vertices[0][2]);
+            packed_data_list.add(1.0f); // this is a position
+            packed_data_list.add((float) normal[0]);
+            packed_data_list.add((float) normal[1]);
+            packed_data_list.add((float) normal[2]);
+            packed_data_list.add(0.0f); // this is a direction
+
+            // Add vertex 1 and the normal for this tri
+            packed_data_list.add((float) vertices[1][0]);
+            packed_data_list.add((float) vertices[1][1]);
+            packed_data_list.add((float) vertices[1][2]);
+            packed_data_list.add(1.0f); // this is a position
+            packed_data_list.add((float) normal[0]);
+            packed_data_list.add((float) normal[1]);
+            packed_data_list.add((float) normal[2]);
+            packed_data_list.add(0.0f); // this is a direction
+
+            // Add vertex 1 and the normal for this tri
+            packed_data_list.add((float) vertices[2][0]);
+            packed_data_list.add((float) vertices[2][1]);
+            packed_data_list.add((float) vertices[2][2]);
+            packed_data_list.add(1.0f); // this is a position
+            packed_data_list.add((float) normal[0]);
+            packed_data_list.add((float) normal[1]);
+            packed_data_list.add((float) normal[2]);
+            packed_data_list.add(0.0f); // this is a direction
 
             update_bounding_box(vertices);
         }
+        input_loader = null;
 
-        // set triangle manually
-//        Vertex v0 = new Vertex(0.0f, 0.0f, 0.0f);
-//        Vertex v1 = new Vertex(1.0f, 0.0f, 0.0f);
-//        Vertex v2 = new Vertex(0.0f, 1.0f, 0.0f);
-//        triangles.add(new Triangle(v0, v1, v2));
-//        bounding_box[0] = 0.0f;
-//        bounding_box[1] = 1.0f;
-//        bounding_box[2] = 0.0f;
-//        bounding_box[3] = 1.0f;
-//        bounding_box[4] = 0.0f;
-//        bounding_box[5] = 0.0f;
-
-        number_of_triangles = triangles.size();
+        // load vertex positions into a float array
+        // (# of triangles) * (vertices per triangle + normals per triangle) * (floats per vertex or normal)
+        float[] packed_data_array = new float[(number_of_triangles) * (3 + 3) * 4];
+        int index = 0;
+        for (float datum : packed_data_list) {
+            packed_data_array[index] = datum;
+            index++;
+        }
+        packed_data_list = null;
 
         box_size[0] = bounding_box[1] - bounding_box[0];
         box_size[1] = bounding_box[3] - bounding_box[2];
@@ -189,55 +204,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         box_middle[2] = (float) (bounding_box[4] + bounding_box[5]) / 2;
 
         max_box_size = (float) Math.max(Math.max(box_size[0], box_size[1]), box_size[2]);
-        print_bounding_box();
-
-        // put model at origin TODO: find a way to do this with matrix transformations
-//        for (Triangle triangle : triangles) {
-//            triangle.translate(new Vertex(-box_middle[0], -box_middle[1], -box_middle[2]));
-//        }
-
-        // load vertex positions into a float array
-        // (# of triangles) * (vertices per triangle + normals per triangle) * (floats per vertex or normal)
-        float[] packed_data_array = new float[(number_of_triangles) * (3 + 3) * 4];
-        int step_size = (3 + 3) * 4; // (vertices per triangle + normals per triangle) * (floats per vertex or normal)
-        int position_index = 0;
-        for (int i = 0; i < number_of_triangles; i++) {
-            Triangle temp_tri = triangles.get(i);
-            Vertex temp_vertex =  normals.get(i);
-
-            // Add vertex 1 and the normal for this tri
-            Vertex firstVertex = temp_tri.getFirstVertex();
-            packed_data_array[(step_size * i)] = firstVertex.getX();
-            packed_data_array[(step_size * i) + 1] = firstVertex.getY();
-            packed_data_array[(step_size * i) + 2] = firstVertex.getZ();
-            packed_data_array[(step_size * i) + 3] = 1.0f; // this is a position
-            packed_data_array[(step_size * i) + 4] = temp_vertex.getX();
-            packed_data_array[(step_size * i) + 5] = temp_vertex.getY();
-            packed_data_array[(step_size * i) + 6] = temp_vertex.getZ();
-            packed_data_array[(step_size * i) + 7] = 0.0f; // this is a direction
-
-            // Add vertex 2 and the normal for this tri
-            Vertex secondVertex = temp_tri.getSecondVertex();
-            packed_data_array[(step_size * i) + 8] = secondVertex.getX();
-            packed_data_array[(step_size * i) + 9] = secondVertex.getY();
-            packed_data_array[(step_size * i) + 10] = secondVertex.getZ();
-            packed_data_array[(step_size * i) + 11] = 1.0f; // this is a position
-            packed_data_array[(step_size * i) + 12] = temp_vertex.getX();
-            packed_data_array[(step_size * i) + 13] = temp_vertex.getY();
-            packed_data_array[(step_size * i) + 14] = temp_vertex.getZ();
-            packed_data_array[(step_size * i) + 15] = 0.0f; // this is a direction
-
-            // Add vertex 3 and the normal for this tri
-            Vertex thirdVertex = temp_tri.getThirdVertex();
-            packed_data_array[(step_size * i) + 16] = thirdVertex.getX();
-            packed_data_array[(step_size * i) + 17] = thirdVertex.getY();
-            packed_data_array[(step_size * i) + 18] = thirdVertex.getZ();
-            packed_data_array[(step_size * i) + 19] = 1.0f; // this is a position
-            packed_data_array[(step_size * i) + 20] = temp_vertex.getX();
-            packed_data_array[(step_size * i) + 21] = temp_vertex.getY();
-            packed_data_array[(step_size * i) + 22] = temp_vertex.getZ();
-            packed_data_array[(step_size * i) + 23] = 0.0f; // this is a direction
-        }
+//        print_bounding_box();
 
         // Add program to OpenGL ES environment
         GLES20.glUseProgram(myProgram);
@@ -260,10 +227,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         myMVPMatrixHandle = GLES20.glGetUniformLocation(myProgram, "uMVPMatrix");
 
         normalTransformMatrixHandle = GLES20.glGetUniformLocation(myProgram, "normalTransformMatrix");
-
-        // set light direction
-//        myLightDirHandle = GLES20.glGetAttribLocation(myProgram, "light_dir");
-//        GLES20.glUniform3f(myLightDirHandle, 0.0f, 0.0f, 1.0f);
 
         // Create buffer containing all of our vertex data
         int number_of_bytes = packed_data_array.length * 4; // (# of floats) * (bytes per float)
@@ -326,6 +289,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // for transitioning to model space
         Matrix.setIdentityM(scratch, 0);
         Matrix.translateM(myModelMatrix, 0,scratch, 0, -box_middle[0], -box_middle[1], -box_middle[2]);
+
+        Matrix.setIdentityM(totRotationMatrix, 0);
     }
 
     @Override
@@ -334,16 +299,13 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
         // Calculate rotation matrix
-        Matrix.setRotateM(xRotationMatrix, 0, xAngle, 1.0f, 0, 0);
-        Matrix.setRotateM(yRotationMatrix, 0, yAngle, 0, 1.0f, 0);
-        Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
+//        Matrix.setRotateM(xRotationMatrix, 0, xAngle, 1.0f, 0, 0);
+//        Matrix.setRotateM(yRotationMatrix, 0, yAngle, 0, 1.0f, 0);
+//        Matrix.multiplyMM(totRotationMatrix, 0, xRotationMatrix, 0, yRotationMatrix, 0);
 
         // [projection] * [view] * [rotation] * [translation]
         Matrix.multiplyMM(scratch, 0, totRotationMatrix, 0, myModelMatrix, 0);
-        Matrix.multiplyMM(myMVPMatrix, 0, myViewProjectionMatrix, 0, scratch, 0); // scratch
-//        for (int i = 0; i < 16; i++) {
-//            System.out.println(totRotationMatrix[i]);
-//        }
+        Matrix.multiplyMM(myMVPMatrix, 0, myViewProjectionMatrix, 0, scratch, 0);
 
         // Pass the projection and view transformation to the shader
         GLES20.glUniformMatrix4fv(myMVPMatrixHandle, 1, false, myMVPMatrix, 0);
@@ -423,27 +385,12 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         System.out.println();
     }
 
-    public float getYAngle() {
-        return yAngle;
-    }
-
-    public void setYAngle(float angle) {
-        yAngle = angle;
-    }
-    public float getXAngle() {
-        return xAngle;
-    }
-
-    public void setXAngle(float angle) {
-        xAngle = angle;
-    }
-
     // updates orientation according to direction screen is being swiped
     // also updates orientation matrix
     // the axis of rotation is perpendicular both the swipe direction and z
     public void updateOrientation(float dx, float dy) {
         float[] rotation_axis = {-dy, dx, 0.0f};
-        float rotation_angle = (float) Math.sqrt((double) (dx * dx + dy * dy));
+        float rotation_angle = Math.abs(dx) + Math.abs(dy); //(float) Math.sqrt((double) (dx * dx + dy * dy));
         float[] temp_rotation_matrix = new float[16];
         Matrix.setRotateM(temp_rotation_matrix,
                             0,
@@ -452,31 +399,12 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                             rotation_axis[1],
                             rotation_axis[2]);
 
-        float[] scratch_direction = new float[4];
-        Matrix.multiplyMV(scratch_direction, 0, temp_rotation_matrix, 0, upDirection, 0);
-//        scratch_direction = normalizeVector(scratch_direction); // normalize scratch_direction
-        float[] rotation_axis_A = normalizeVector(cross(upDirection, scratch_direction));
-        Matrix.setRotateM(xRotationMatrix,
-                            0,
-                            (float) Math.acos((double) dot(upDirection, scratch_direction)),
-                            rotation_axis_A[0],
-                            rotation_axis_A[1],
-                            rotation_axis_A[2]);
-//        upDirection = scratch_direction;
-        System.arraycopy(scratch_direction, 0, upDirection, 0, 4);
+        float[] scratch_1 = new float[16]; // don't use scratch because it is used by another thread
+        for (int i = 0; i < 16; i++) {
+            scratch_1[i] = totRotationMatrix[i];
+        }
 
-        Matrix.multiplyMV(scratch_direction, 0, temp_rotation_matrix, 0, facingDirection, 0);
-//        scratch_direction = normalizeVector(scratch_direction); // normalize scratch_direction
-        Matrix.setRotateM(yRotationMatrix,
-                            0,
-                            (float) Math.acos((double) dot(facingDirection, scratch_direction)),
-                            upDirection[0],
-                            upDirection[1],
-                            upDirection[2]);
-//        facingDirection = scratch_direction;
-        System.arraycopy(scratch_direction, 0, facingDirection, 0, 4);
-
-        Matrix.multiplyMM(totRotationMatrix, 0, yRotationMatrix, 0, xRotationMatrix, 0);
+        Matrix.multiplyMM(totRotationMatrix, 0, temp_rotation_matrix, 0, scratch_1, 0);
     }
 
     // only normalizes first 3 components
@@ -491,7 +419,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         for (int i = 0; i < number_of_elements; i++) {
             output_vector[i] = input_vector[i] / (float) Math.sqrt(square_accumulator);
         }
-//        output_vector[3] = input_vector[3];
+//        output_vector[3] = input_vector[3]; // don't use this... why? I guess this will only work with directions not positions
         return output_vector;
     }
 
@@ -510,7 +438,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     public static float[] cross(float[] v1, float[] v2) {
         float[] output_vector = new float[4];
         output_vector[0] = v1[1] * v2[2] - v1[2] * v2[1];
-        output_vector[1] = -(v1[0] * v2[2] - v1[2] * v1[0]);
+        output_vector[1] = -(v1[0] * v2[2] - v1[2] * v2[0]);
         output_vector[2] = v1[0] * v2[1] - v1[1] * v2[0];
         output_vector[3] = v1[3];
         return output_vector;
