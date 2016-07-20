@@ -66,7 +66,7 @@ class MyGLSurfaceView extends GLSurfaceView {
     // currently only responds to finger dragging (causes model to rotate)
     // TODO: respond to other touch events (e.g. pinch to zoom)
     // TODO: major bug!!! hold finger down, tap with another finger, image disappears, why? rotation matrix must me set to 0's, but how and how to prevent this?
-    // TODO: once above bug is fixed, use
+    // TODO: once above bug is fixed, use 2 fingers to rotate about z axis in obvious way
     @Override
     public boolean onTouchEvent(MotionEvent e) {
 

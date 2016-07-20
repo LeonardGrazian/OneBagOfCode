@@ -2,28 +2,83 @@ package com.example.mohawkgroup.openglpractice;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.provider.BaseColumns;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Scanner;
 
 /**
  * Created by Mohawk Group on 6/26/2016.
  */
 public class ModelLoader {
+    public static final int FILE_MODE = 0;
+    public static final int CLOUD_MODE = 1;
     private Resources resources;
     private Scanner data_scanner;
+
+    // cloud constants
+    String tableName = "squirtle";
+    String pageExtension = "stl"; // "hello" "db" "sci" ""
+    String serverURL = "https://benefique-livre-59642.herokuapp.com/"
+            + pageExtension + "?param1=" + tableName;
+    String charset = "UTF-8";
 
     // file must be in text format
     // file_name does not include file extension
     // file must be located in raw directory
-    public ModelLoader(Context context, String file_name) {
-        String text_data = null;
-        try {
-            text_data = LoadFile(context, file_name);
-        } catch (IOException e) {
-            e.printStackTrace();
+    public ModelLoader(Context context, String file_name, int mode) {
+        String text_data = "";
+
+        if (mode == FILE_MODE) {
+            try {
+                text_data = LoadFile(context, file_name);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else if (mode == CLOUD_MODE) {
+            try {
+
+                URL url = new URL(serverURL); //"http://localhost:5000/");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                // conn.connect; // io streams implicitly call this
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept-Charset", charset); // only necessary when we pass params
+
+                // getResponseCode() returns 200 if connection is OK
+                // returns 401 if connection is unauthorized
+                // returns -1 if not code can be discerned (e.g. not a valid http)
+                if (conn.getResponseCode() != 200) {
+                    throw new RuntimeException("Failed : HTTP error code : "
+                            + conn.getResponseCode());
+                }
+
+                BufferedReader br = new BufferedReader(new InputStreamReader(
+                        (conn.getInputStream())));
+
+                String temp;
+//            System.out.println("Output from Server .... \n");
+                while ((temp = br.readLine()) != null) { // output = br.readLine()
+                    text_data = text_data + "\n" + temp;
+//                System.out.println(output);
+                }
+                conn.disconnect();
+
+            } catch (MalformedURLException e) {
+
+                e.printStackTrace();
+
+            } catch (IOException e) {
+
+                e.printStackTrace();
+
+            }
         }
 
         data_scanner = new Scanner(text_data);
@@ -60,6 +115,7 @@ public class ModelLoader {
                 return true;
             }
         }
+        data_scanner = null;
         return false;
     }
 

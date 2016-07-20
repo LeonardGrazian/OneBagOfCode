@@ -142,7 +142,9 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glLinkProgram(myProgram);
 
         // load up the model from file (exclude file extension)
-        ModelLoader input_loader = new ModelLoader(context, "squirtle"); // name of stl goes here
+        ModelLoader input_loader = new ModelLoader(context,
+                                                    "squirtle",
+                                                    ModelLoader.CLOUD_MODE); // name of stl goes here
 
         List<Float> packed_data_list = new LinkedList<Float>(); // XYZ XYZ XYZ NxNyNz ...
         number_of_triangles = 0;
