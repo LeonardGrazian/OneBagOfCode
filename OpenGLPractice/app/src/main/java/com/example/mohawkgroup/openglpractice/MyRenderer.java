@@ -1,27 +1,21 @@
 package com.example.mohawkgroup.openglpractice;
 
 import android.content.Context;
-import android.opengl.EGLConfig;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
+import android.util.Log;
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
-import javax.microedition.khronos.opengles.GL10;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-import org.j3d.geom.particle.MaxTimeParticleFunction;
-import org.j3d.loaders.stl.STLFileReader;
+import javax.microedition.khronos.opengles.GL10;
 
 /**
  * Created by Mohawk Group on 6/24/2016.
@@ -29,6 +23,9 @@ import org.j3d.loaders.stl.STLFileReader;
  */
 public class MyRenderer implements GLSurfaceView.Renderer {
     private Context context;
+    private String model_name;
+
+    private final Lock lock = new ReentrantLock();
 
     private double[] bounding_box = {Double.MAX_VALUE, -Double.MAX_VALUE,
                                         Double.MAX_VALUE, -Double.MAX_VALUE,
@@ -109,6 +106,11 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         this.context = context;
     }
 
+    public MyRenderer(String model_name) {
+        super();
+        this.model_name = model_name;
+    }
+
     @Override
     public void onSurfaceCreated(GL10 gl10, javax.microedition.khronos.egl.EGLConfig eglConfig) {
         // Set the background frame color
@@ -143,8 +145,10 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         // load up the model from file (exclude file extension)
         ModelLoader input_loader = new ModelLoader(context,
-                                                    "squirtle",
+                                                    model_name,
                                                     ModelLoader.CLOUD_MODE); // name of stl goes here
+
+        Log.i(DisplayActivity.TAG, "Begin parsing data");
 
         List<Float> packed_data_list = new LinkedList<Float>(); // XYZ XYZ XYZ NxNyNz ...
         number_of_triangles = 0;
@@ -186,6 +190,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
             update_bounding_box(vertices);
         }
         input_loader = null;
+
+        Log.i(DisplayActivity.TAG, "Finished parsing data");
 
         // load vertex positions into a float array
         // (# of triangles) * (vertices per triangle + normals per triangle) * (floats per vertex or normal)
@@ -282,6 +288,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         // IMPORTANT: Unbind from the buffer when we're done with it.
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+
+        Log.i(DisplayActivity.TAG, "Buffer pushed to GPU");
 
         // get view matrix
         Matrix.setLookAtM(myViewMatrix, 0, 0.0f, 0.0f,
@@ -390,18 +398,32 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     // updates orientation according to direction screen is being swiped
     // also updates orientation matrix
     // the axis of rotation is perpendicular both the swipe direction and z
-    public void updateOrientation(float dx, float dy) {
+    // REQUIRES: either dx or dy is non-zero
+    public void updateXYOrientation(float dx, float dy) {
+        float rotation_angle = Math.abs(dx) + Math.abs(dy);
         float[] rotation_axis = {-dy, dx, 0.0f};
-        float rotation_angle = Math.abs(dx) + Math.abs(dy); //(float) Math.sqrt((double) (dx * dx + dy * dy));
+
+        updateRotationMatrix(rotation_angle, rotation_axis);
+    }
+
+    public void updateZOrientation(float delta) {
+        float[] rotation_axis = {0.0f, 0.0f, 1.0f};
+
+        updateRotationMatrix(delta, rotation_axis);
+    }
+
+    // Create rotation matrix and compose it with our running rotation matrix
+    public void updateRotationMatrix(float rotation_angle, float[] rotation_axis) {
         float[] temp_rotation_matrix = new float[16];
         Matrix.setRotateM(temp_rotation_matrix,
-                            0,
-                            rotation_angle,
-                            rotation_axis[0],
-                            rotation_axis[1],
-                            rotation_axis[2]);
+                0,
+                rotation_angle,
+                rotation_axis[0],
+                rotation_axis[1],
+                rotation_axis[2]);
 
         float[] scratch_1 = new float[16]; // don't use scratch because it is used by another thread
+
         for (int i = 0; i < 16; i++) {
             scratch_1[i] = totRotationMatrix[i];
         }

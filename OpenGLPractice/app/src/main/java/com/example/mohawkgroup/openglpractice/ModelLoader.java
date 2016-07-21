@@ -3,6 +3,7 @@ package com.example.mohawkgroup.openglpractice;
 import android.content.Context;
 import android.content.res.Resources;
 import android.provider.BaseColumns;
+import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -23,13 +24,6 @@ public class ModelLoader {
     private Resources resources;
     private Scanner data_scanner;
 
-    // cloud constants
-    String tableName = "squirtle";
-    String pageExtension = "stl"; // "hello" "db" "sci" ""
-    String serverURL = "https://benefique-livre-59642.herokuapp.com/"
-            + pageExtension + "?param1=" + tableName;
-    String charset = "UTF-8";
-
     // file must be in text format
     // file_name does not include file extension
     // file must be located in raw directory
@@ -37,12 +31,23 @@ public class ModelLoader {
         String text_data = "";
 
         if (mode == FILE_MODE) {
+            Log.i(DisplayActivity.TAG, "Loading " + file_name + " from local file");
+
             try {
                 text_data = LoadFile(context, file_name);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         } else if (mode == CLOUD_MODE) {
+            Log.i(DisplayActivity.TAG, "Loading " + file_name + " from cloud");
+
+            // cloud constants
+            String pageExtension = "stl"; // "hello" "db" "sci" ""
+            // file_name is name of table where data is stored
+            String serverURL = "https://benefique-livre-59642.herokuapp.com/"
+                    + pageExtension + "?param1=" + file_name;
+            String charset = "UTF-8";
+
             try {
 
                 URL url = new URL(serverURL); //"http://localhost:5000/");
@@ -80,6 +85,7 @@ public class ModelLoader {
 
             }
         }
+        Log.i(DisplayActivity.TAG, "Loading complete");
 
         data_scanner = new Scanner(text_data);
     }
