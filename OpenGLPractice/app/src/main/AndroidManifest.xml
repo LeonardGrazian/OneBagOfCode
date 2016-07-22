@@ -3,6 +3,7 @@
     package="com.example.mohawkgroup.openglpractice">
 
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <supports-gl-texture android:name="GL_OES_compressed_ETC1_RGB8_texture" />
     <supports-gl-texture android:name="GL_OES_compressed_paletted_texture" />
@@ -19,6 +20,14 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        <activity
+            android:name="com.example.mohawkgroup.openglpractice.DisplayActivity"
+            android:label="@string/title_activity_display"
+            android:parentActivityName="com.example.mohawkgroup.openglpractice.MainActivity" >
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.example.mohawkgroup.openglpractice.MainActivity" />
         </activity>
     </application>
 

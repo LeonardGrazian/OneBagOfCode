@@ -13,7 +13,11 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Scanner;
+
+import org.apache.commons.io.IOUtils;
 
 /**
  * Created by Mohawk Group on 6/26/2016.
@@ -23,6 +27,7 @@ public class ModelLoader {
     public static final int CLOUD_MODE = 1;
     private Resources resources;
     private Scanner data_scanner;
+    private byte[] model_byte_data;
 
     // file must be in text format
     // file_name does not include file extension
@@ -64,16 +69,8 @@ public class ModelLoader {
                             + conn.getResponseCode());
                 }
 
-                BufferedReader br = new BufferedReader(new InputStreamReader(
-                        (conn.getInputStream())));
-
-                String temp;
-//            System.out.println("Output from Server .... \n");
-                while ((temp = br.readLine()) != null) { // output = br.readLine()
-                    text_data = text_data + "\n" + temp;
-//                System.out.println(output);
-                }
-                conn.disconnect();
+                InputStream byte_input_stream = conn.getInputStream();
+                model_byte_data = IOUtils.toByteArray(byte_input_stream);
 
             } catch (MalformedURLException e) {
 
@@ -91,6 +88,7 @@ public class ModelLoader {
     }
 
     // normal should have 3 entries, vertices should be have 3x3 entries
+    // used for reading from file, NOT for cloud mode
     public boolean getNextFacet(double[] normal, double[][] vertices) {
         // data for each facet is stored in stl as follows:
 //        facet normal 0 1 0
@@ -123,6 +121,11 @@ public class ModelLoader {
         }
         data_scanner = null;
         return false;
+    }
+
+    // used for reading from cloud, NOT for file mode
+    public byte[] getByteArray() {
+        return model_byte_data;
     }
 
     //load file from apps res/raw folder

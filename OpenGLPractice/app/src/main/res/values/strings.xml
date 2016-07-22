@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">OpenGLPractice</string>
+
+    <string name="title_activity_display">Model Viewer</string>
+
+    <string name="welcome">Hi there and welcome! Please select which motherfucking model you would like to display!</string>
+
+    <string name="button1_label">cube</string>
+    <string name="button2_label">squirtle</string>
+    <string name="button3_label">thinker</string>
+    <string name="button4_label">utah_teapot</string>
 </resources>

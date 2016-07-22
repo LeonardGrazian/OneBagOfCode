@@ -10,7 +10,40 @@
     tools:context="com.example.mohawkgroup.openglpractice.MainActivity">
 
     <TextView
+        android:id="@+id/intro_message"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!" />
+        android:text="@string/welcome" />
+
+    <Button
+        android:id="@+id/button1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/intro_message"
+        android:text="@string/button1_label"
+        android:onClick="displayModel"/>
+
+    <Button
+        android:id="@+id/button2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/button1"
+        android:text="@string/button2_label"
+        android:onClick="displayModel"/>
+
+    <Button
+        android:id="@+id/button3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/button2"
+        android:text="@string/button3_label"
+        android:onClick="displayModel"/>
+
+    <Button
+        android:id="@+id/button4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/button3"
+        android:text="@string/button4_label"
+        android:onClick="displayModel"/>
 </RelativeLayout>

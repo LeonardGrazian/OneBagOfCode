@@ -143,77 +143,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // creates OpenGL ES program executables
         GLES20.glLinkProgram(myProgram);
 
-        // load up the model from file (exclude file extension)
-        ModelLoader input_loader = new ModelLoader(context,
-                                                    model_name,
-                                                    ModelLoader.CLOUD_MODE); // name of stl goes here
-
-        Log.i(DisplayActivity.TAG, "Begin parsing data");
-
-        List<Float> packed_data_list = new LinkedList<Float>(); // XYZ XYZ XYZ NxNyNz ...
-        number_of_triangles = 0;
-        double[] normal = new double[3];
-        double[][] vertices = new double[3][3];
-        while (input_loader.getNextFacet(normal, vertices)) {
-            number_of_triangles++;
-
-            // Add vertex 1 and the normal for this tri
-            packed_data_list.add((float) vertices[0][0]);
-            packed_data_list.add((float) vertices[0][1]);
-            packed_data_list.add((float) vertices[0][2]);
-            packed_data_list.add(1.0f); // this is a position
-            packed_data_list.add((float) normal[0]);
-            packed_data_list.add((float) normal[1]);
-            packed_data_list.add((float) normal[2]);
-            packed_data_list.add(0.0f); // this is a direction
-
-            // Add vertex 1 and the normal for this tri
-            packed_data_list.add((float) vertices[1][0]);
-            packed_data_list.add((float) vertices[1][1]);
-            packed_data_list.add((float) vertices[1][2]);
-            packed_data_list.add(1.0f); // this is a position
-            packed_data_list.add((float) normal[0]);
-            packed_data_list.add((float) normal[1]);
-            packed_data_list.add((float) normal[2]);
-            packed_data_list.add(0.0f); // this is a direction
-
-            // Add vertex 1 and the normal for this tri
-            packed_data_list.add((float) vertices[2][0]);
-            packed_data_list.add((float) vertices[2][1]);
-            packed_data_list.add((float) vertices[2][2]);
-            packed_data_list.add(1.0f); // this is a position
-            packed_data_list.add((float) normal[0]);
-            packed_data_list.add((float) normal[1]);
-            packed_data_list.add((float) normal[2]);
-            packed_data_list.add(0.0f); // this is a direction
-
-            update_bounding_box(vertices);
-        }
-        input_loader = null;
-
-        Log.i(DisplayActivity.TAG, "Finished parsing data");
-
-        // load vertex positions into a float array
-        // (# of triangles) * (vertices per triangle + normals per triangle) * (floats per vertex or normal)
-        float[] packed_data_array = new float[(number_of_triangles) * (3 + 3) * 4];
-        int index = 0;
-        for (float datum : packed_data_list) {
-            packed_data_array[index] = datum;
-            index++;
-        }
-        packed_data_list = null;
-
-        box_size[0] = bounding_box[1] - bounding_box[0];
-        box_size[1] = bounding_box[3] - bounding_box[2];
-        box_size[2] = bounding_box[5] - bounding_box[4];
-
-        box_middle[0] = (float) (bounding_box[0] + bounding_box[1]) / 2;
-        box_middle[1] = (float) (bounding_box[2] + bounding_box[3]) / 2;
-        box_middle[2] = (float) (bounding_box[4] + bounding_box[5]) / 2;
-
-        max_box_size = (float) Math.max(Math.max(box_size[0], box_size[1]), box_size[2]);
-//        print_bounding_box();
-
         // Add program to OpenGL ES environment
         GLES20.glUseProgram(myProgram);
 
@@ -221,7 +150,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // get handle to vertex shader's vPosition member
         myPositionHandle = GLES20.glGetAttribLocation(myProgram, "vPosition");
 
-//         get handle to vertex shader's vNormal member
+        // get handle to vertex shader's vNormal member
         myNormalHandle = GLES20.glGetAttribLocation(myProgram, "vNormal");
 
         // get handle to fragment shader's vColor member
@@ -236,18 +165,57 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         normalTransformMatrixHandle = GLES20.glGetUniformLocation(myProgram, "normalTransformMatrix");
 
+        // load up the model from file (exclude file extension)
+        ModelLoader input_loader = new ModelLoader(context,
+                                                    model_name,
+                                                    ModelLoader.CLOUD_MODE); // name of stl goes here
+
+        byte[] model_byte_data = input_loader.getByteArray();
+        int number_of_bytes = model_byte_data.length;
+        number_of_triangles = number_of_bytes / 96;
+
+        Log.i(DisplayActivity.TAG, "Starting byte to float conversion");
+
+        float[] model_float_data = new float[number_of_bytes / 4];
+        for (int i = 0; i < number_of_bytes / 4; i++) {
+            float f = ByteBuffer.wrap(model_byte_data, 4 * i, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+            model_float_data[i] = f;
+//            System.out.println(f);
+            update_bounding_box(f, i);
+        }
+
+        Log.i(DisplayActivity.TAG, "Finished byte to float conversion");
+
+        box_size[0] = bounding_box[1] - bounding_box[0];
+        box_size[1] = bounding_box[3] - bounding_box[2];
+        box_size[2] = bounding_box[5] - bounding_box[4];
+
+        box_middle[0] = (float) (bounding_box[0] + bounding_box[1]) / 2;
+        box_middle[1] = (float) (bounding_box[2] + bounding_box[3]) / 2;
+        box_middle[2] = (float) (bounding_box[4] + bounding_box[5]) / 2;
+
+        max_box_size = (float) Math.max(Math.max(box_size[0], box_size[1]), box_size[2]);
+//        print_bounding_box();
+
         // Create buffer containing all of our vertex data
-        int number_of_bytes = packed_data_array.length * 4; // (# of floats) * (bytes per float)
+//        ByteBuffer bb = ByteBuffer.wrap(model_byte_data); // alt
         ByteBuffer bb = ByteBuffer.allocateDirect(number_of_bytes);
         // use the device hardware's native byte order
         bb.order(ByteOrder.nativeOrder());
 
         // create a floating point buffer from the ByteBuffer
         FloatBuffer cDataBuffer = bb.asFloatBuffer();
-        // add the coordinates to the FloatBuffer
-        cDataBuffer.put(packed_data_array);
+        cDataBuffer.put(model_float_data);
+        // print float buffer
+//        cDataBuffer.position(0);
+//        while (cDataBuffer.hasRemaining()) {
+//            System.out.println(cDataBuffer.position() + "->" + cDataBuffer.get());
+//        }
         // set the buffer to read the first coordinate
         cDataBuffer.position(0);
+
+        Log.i(DisplayActivity.TAG, "Buffer created successfully");
+//        Log.i(DisplayActivity.TAG, "We have " + ((float) model_byte_data.length / 96) + " triangles");
 
         int[] gBuffers = new int[3];
         GLES20.glGenBuffers(3, gBuffers, 0);
@@ -259,6 +227,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                             cDataBuffer,
                             GLES20.GL_STATIC_DRAW // we will NOT update positions dynamically
         );
+
+        Log.i(DisplayActivity.TAG, "Buffer pushed to GPU");
 
 //        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, gBuffers[1]);
 
@@ -273,7 +243,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                 4,                  // size
                 GLES20.GL_FLOAT,    // type
                 false,              // normalized?
-                stride,                  // stride
+                stride,             // stride
                 0                   // array buffer offset
         );
 
@@ -289,12 +259,11 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         // IMPORTANT: Unbind from the buffer when we're done with it.
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
-        Log.i(DisplayActivity.TAG, "Buffer pushed to GPU");
-
         // get view matrix
-        Matrix.setLookAtM(myViewMatrix, 0, 0.0f, 0.0f,
-                10.0f * max_box_size, //25.0f, // = z_min - (z_min + z_max)/2
-                0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+        Matrix.setLookAtM(myViewMatrix, 0,
+                0.0f, 0.0f, 10.0f * max_box_size, //25.0f, // = z_min - (z_min + z_max)/2
+                0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f);
 
         // for transitioning to model space
         Matrix.setIdentityM(scratch, 0);
@@ -328,6 +297,9 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     @Override
     public void onSurfaceChanged(GL10 unused, int width, int height) {
         GLES20.glViewport(0, 0, width, height);
+
+//        Log.i(DisplayActivity.TAG, "WIDTH=" + width + " HEIGHT=" + height);
+        print_bounding_box();
 
         float ratio = (float) width / height;
 
@@ -380,6 +352,36 @@ public class MyRenderer implements GLSurfaceView.Renderer {
             }
             if (vertices[i][2] > bounding_box[5]) {
                 bounding_box[5] = vertices[i][2];
+            }
+        }
+    }
+
+    // the index provides us with coord info (e.g. is this float an x coord?)
+    public void update_bounding_box(float f, int index) {
+        int reduced_index = index % 8;
+        if (reduced_index == 0) {
+            // x coord
+            if (f < bounding_box[0]) {
+                bounding_box[0] = f;
+            }
+            if (f > bounding_box[1]) {
+                bounding_box[1] = f;
+            }
+        } else if (reduced_index == 1) {
+            // y coord
+            if (f < bounding_box[2]) {
+                bounding_box[2] = f;
+            }
+            if (f > bounding_box[3]) {
+                bounding_box[3] = f;
+            }
+        } else if (reduced_index == 2) {
+            // z coord
+            if (f < bounding_box[4]) {
+                bounding_box[4] = f;
+            }
+            if (f > bounding_box[5]) {
+                bounding_box[5] = f;
             }
         }
     }
